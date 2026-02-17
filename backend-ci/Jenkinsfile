@@ -1,0 +1,91 @@
+pipeline {
+    agent { label 'agent-ubuntu' }
+
+    environment {
+        DOCKERHUB_USER = "morlayecisse1196"
+        DJANGO_IMAGE   = "${DOCKERHUB_USER}/django-app"
+        DJANGO_TAG     = "1.${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Checkout Django Code') {
+            steps {
+                echo "📥 Récupération du code Django..."
+                checkout scm
+            }
+        }
+
+        stage('Install Python Dependencies') {
+            steps {
+                echo "📦 Installation des dépendances Python..."
+                sh """
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                """
+            }
+        }
+
+        stage('Run Django Tests') {
+            steps {
+                echo "🧪 Exécution des tests Django..."
+                sh """
+                    . venv/bin/activate
+                    python3 manage.py test
+                """
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                echo "🔍 Analyse SonarQube du code Django..."
+                script {
+                    //C'est ici qu'on appelle l'outil configuré dans Jenkins
+                    def scannerHome = tool 'SonarScanner' 
+                    
+                    withSonarQubeEnv('SonarQube') {
+                        // On utilise scannerHome pour pointer vers le bon exécutable
+                        sh """
+                            ${scannerHome}/bin/sonar-scanner \
+                              -Dsonar.projectKey=django-project \
+                              -Dsonar.sources=. \
+                              -Dsonar.host.url=http://13.38.54.58:9000
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Build Django Docker Image') {
+            steps {
+                echo "🐳 Construction de l'image Docker Django..."
+                sh "docker build -t ${DJANGO_IMAGE}:${DJANGO_TAG} ."
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                echo "📤 Push de l'image Docker vers DockerHub..."
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                   sh """
+                        echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
+                        docker tag ${DJANGO_IMAGE}:${DJANGO_TAG} ${DJANGO_IMAGE}:latest
+                        docker push ${DJANGO_IMAGE}:${DJANGO_TAG}
+                        docker push ${DJANGO_IMAGE}:latest
+                        docker logout
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Déploiement Django réussi"
+        }
+        failure {
+            echo "❌ Échec du pipeline Django"
+        }
+    }
+}

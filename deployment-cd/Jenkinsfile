@@ -1,0 +1,42 @@
+pipeline {
+    agent { label 'agent-ubuntu' }
+
+    stages {
+        stage('Checkout Deployment Code') {
+            steps {
+                echo "📥 Récupération de la configuration..."
+                checkout scm
+            }
+        }
+
+        stage('Pull Latest Images') {
+            steps {
+                echo "🔄 Récupération des images depuis Docker Hub..."
+                sh "docker compose pull"
+            }
+        }
+
+        stage('Security Scan (Trivy)') {
+            steps {
+                echo "🛡️ Scan des vulnérabilités des images..."
+                // Scan de l'image Backend
+                sh "/snap/bin/trivy image morlayecisse1196/django-app:latest"
+                // Scan de l'image Frontend
+                sh "/snap/bin/trivy image morlayecisse1196/react-frontend:latest"
+            }
+        }
+
+        stage('Deploy Application') {
+            steps {
+                echo "🚀 Déploiement automatique avec Docker Compose..."
+                sh "docker compose up -d --remove-orphans"
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Déploiement et Scan réussis !"
+        }
+    }
+}

@@ -1,0 +1,7 @@
+# version: '3.8'
+services:
+  frontend:
+    image: morlayecisse1196/react-frontend:latest # ou votre variable de tag
+    ports:
+      - "80:80"
+    restart: always

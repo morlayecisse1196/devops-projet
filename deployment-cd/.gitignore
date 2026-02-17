@@ -1,0 +1,40 @@
+# Environment variables
+#.env
+.env.local
+.env.*.local
+
+# Backups
+backups/
+*.sql
+*.dump
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+
+# Monitoring data
+monitoring/data/
+prometheus/data/
+grafana/data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+tmp/
+
+# Secrets
+secrets/
+*.key
+*.pem
+*.crt

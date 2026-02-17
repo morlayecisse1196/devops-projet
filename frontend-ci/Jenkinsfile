@@ -1,0 +1,84 @@
+pipeline {
+    agent { label 'agent-ubuntu' }
+
+    environment {
+        DOCKERHUB_USER = "morlayecisse1196"
+        REACT_IMAGE    = "${DOCKERHUB_USER}/react-frontend"
+        REACT_TAG      = "1.${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Checkout React Code ') {
+            steps {
+                echo "📥 Récupération du code Frontend React....."
+                checkout scm
+            }
+        }
+
+        stage('Install Node Dependencies') {
+            steps {
+                echo "📦 Installation des paquets npm..."
+                // On utilise  --frozen-lockfile ou simplement install
+                sh "npm install"
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                echo "🔍 Analyse SonarQube du code React..."
+                script {
+                    def scannerHome = tool 'SonarScanner' 
+                    
+                    withSonarQubeEnv('SonarQube') {
+                        sh """
+                            ${scannerHome}/bin/sonar-scanner \
+                              -Dsonar.projectKey=react-frontend-project \
+                              -Dsonar.sources=src \
+                              -Dsonar.host.url=http://13.38.54.58:9000
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Build React Production') {
+            steps {
+                echo "🏗️ Création du build de production..."
+                sh "npm run build"
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                echo "🐳 Construction de l'image Docker React..."
+                sh "docker build -t ${REACT_IMAGE}:${REACT_TAG} ."
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                echo "📤 Push vers DockerHub..."
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
+                        docker tag ${REACT_IMAGE}:${REACT_TAG} ${REACT_IMAGE}:latest
+                        docker push ${REACT_IMAGE}:${REACT_TAG}
+                        docker push ${REACT_IMAGE}:latest
+                        docker logout
+                    """
+                }
+            }
+        }
+
+        
+    }
+
+    post {
+        success {
+            echo "✅ Déploiement React réussi !"
+        }
+        failure {
+            echo "❌ Échec du pipeline React"
+        }
+    }
+}
